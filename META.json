@@ -42,7 +42,7 @@
          "url" : "git://github.com/doy/package-stash.git"
       }
    },
-   "version" : "0.15",
+   "version" : "0.16",
    "x_Dist_Zilla" : {
       "plugins" : [
          {

@@ -162,7 +162,7 @@ vartype_t string_to_vartype(char *vartype)
         return VAR_IO;
     }
     else {
-        croak("Type must be one of 'SCALAR', 'ARRAY', 'HASH', 'CODE', or 'IO'");
+        croak("Type must be one of 'SCALAR', 'ARRAY', 'HASH', 'CODE', or 'IO', not '%s'", vartype);
     }
 }
 
@@ -202,19 +202,18 @@ void _deconstruct_variable_name(SV *variable, varspec_t *varspec)
 void _deconstruct_variable_hash(HV *variable, varspec_t *varspec)
 {
     HE *val;
-    STRLEN len;
 
     val = hv_fetch_ent(variable, name_key, 0, name_hash);
     if (!val)
         croak("The 'name' key is required in variable specs");
 
-    varspec->name = sv_2mortal(newSVhe(val));
+    varspec->name = sv_2mortal(newSVsv(HeVAL(val)));
 
     val = hv_fetch_ent(variable, type_key, 0, type_hash);
     if (!val)
         croak("The 'type' key is required in variable specs");
 
-    varspec->type = string_to_vartype(HePV(val, len));
+    varspec->type = string_to_vartype(SvPV_nolen(HeVAL(val)));
 }
 
 int _valid_for_type(SV *value, vartype_t type)
@@ -347,7 +346,7 @@ SV *_get_symbol(SV *self, varspec_t *variable, int vivify)
     }
 }
 
-#line 351 "XS.c"
+#line 350 "XS.c"
 #ifndef PERL_UNUSED_VAR
 #  define PERL_UNUSED_VAR(var) if (0) var = var
 #endif
@@ -399,7 +398,7 @@ S_croak_xs_usage(pTHX_ const CV *const cv, const char *const params)
 #define newXSproto_portable(name, c_impl, file, proto) (PL_Sv=(SV*)newXS(name, c_impl, file), sv_setpv(PL_Sv, proto), (CV*)PL_Sv)
 #endif /* !defined(newXS_flags) */
 
-#line 403 "XS.c"
+#line 402 "XS.c"
 
 XS(XS_Package__Stash__XS_new); /* prototype to pass -Wmissing-prototypes */
 XS(XS_Package__Stash__XS_new)
@@ -414,13 +413,13 @@ XS(XS_Package__Stash__XS_new)
     {
 	SV *	class = ST(0);
 	SV *	package_name = ST(1);
-#line 350 "XS.xs"
+#line 349 "XS.xs"
     HV *instance;
     HV *namespace;
     SV *nsref;
-#line 422 "XS.c"
+#line 421 "XS.c"
 	SV *	RETVAL;
-#line 354 "XS.xs"
+#line 353 "XS.xs"
     if (!SvPOK(package_name))
         croak("The constructor argument must be the name of a package");
 
@@ -440,7 +439,7 @@ XS(XS_Package__Stash__XS_new)
     }
 
     RETVAL = sv_bless(newRV_noinc((SV*)instance), gv_stashsv(class, 0));
-#line 444 "XS.c"
+#line 443 "XS.c"
 	ST(0) = RETVAL;
 	sv_2mortal(ST(0));
     }
@@ -460,16 +459,16 @@ XS(XS_Package__Stash__XS_name)
        croak_xs_usage(cv,  "self");
     {
 	SV *	self = ST(0);
-#line 380 "XS.xs"
+#line 379 "XS.xs"
     HE *slot;
-#line 466 "XS.c"
+#line 465 "XS.c"
 	SV *	RETVAL;
-#line 382 "XS.xs"
+#line 381 "XS.xs"
     if (!sv_isobject(self))
         croak("Can't call name as a class method");
     slot = hv_fetch_ent((HV*)SvRV(self), name_key, 0, name_hash);
     RETVAL = slot ? SvREFCNT_inc_simple_NN(HeVAL(slot)) : &PL_sv_undef;
-#line 473 "XS.c"
+#line 472 "XS.c"
 	ST(0) = RETVAL;
 	sv_2mortal(ST(0));
     }
@@ -489,16 +488,16 @@ XS(XS_Package__Stash__XS_namespace)
        croak_xs_usage(cv,  "self");
     {
 	SV *	self = ST(0);
-#line 393 "XS.xs"
+#line 392 "XS.xs"
     HE *slot;
-#line 495 "XS.c"
+#line 494 "XS.c"
 	SV *	RETVAL;
-#line 395 "XS.xs"
+#line 394 "XS.xs"
     if (!sv_isobject(self))
         croak("Can't call namespace as a class method");
     slot = hv_fetch_ent((HV*)SvRV(self), namespace_key, 0, namespace_hash);
     RETVAL = slot ? SvREFCNT_inc_simple_NN(HeVAL(slot)) : &PL_sv_undef;
-#line 502 "XS.c"
+#line 501 "XS.c"
 	ST(0) = RETVAL;
 	sv_2mortal(ST(0));
     }
@@ -520,10 +519,10 @@ XS(XS_Package__Stash__XS_add_symbol)
 	SV *	self = ST(0);
 	varspec_t	variable;
 	SV *	initial;
-#line 408 "XS.xs"
+#line 407 "XS.xs"
     SV *name;
     GV *glob;
-#line 527 "XS.c"
+#line 526 "XS.c"
 
     if (SvPOK(ST(1)))
         _deconstruct_variable_name(ST(1), &variable);
@@ -537,7 +536,7 @@ XS(XS_Package__Stash__XS_add_symbol)
 	else {
 	    initial = ST(2);
 	}
-#line 411 "XS.xs"
+#line 410 "XS.xs"
     if (initial && !_valid_for_type(initial, variable.type))
         croak("%s is not of type %s",
               SvPV_nolen(initial), vartype_to_string(variable.type));
@@ -633,7 +632,7 @@ XS(XS_Package__Stash__XS_add_symbol)
     }
 
     SvREFCNT_dec(name);
-#line 637 "XS.c"
+#line 636 "XS.c"
     }
     XSRETURN_EMPTY;
 }
@@ -652,9 +651,9 @@ XS(XS_Package__Stash__XS_remove_glob)
     {
 	SV *	self = ST(0);
 	SV *	name = ST(1);
-#line 512 "XS.xs"
+#line 511 "XS.xs"
     hv_delete_ent(_get_namespace(self), name, G_DISCARD, 0);
-#line 658 "XS.c"
+#line 657 "XS.c"
     }
     XSRETURN_EMPTY;
 }
@@ -673,11 +672,11 @@ XS(XS_Package__Stash__XS_has_symbol)
     {
 	SV *	self = ST(0);
 	varspec_t	variable;
-#line 519 "XS.xs"
+#line 518 "XS.xs"
     HV *namespace;
     HE *entry;
     SV *val;
-#line 681 "XS.c"
+#line 680 "XS.c"
 	int	RETVAL;
 	dXSTARG;
 
@@ -687,7 +686,7 @@ XS(XS_Package__Stash__XS_has_symbol)
         _deconstruct_variable_hash((HV*)SvRV(ST(1)), &variable);
     else
         croak("varspec must be a string or a hashref");
-#line 523 "XS.xs"
+#line 522 "XS.xs"
     namespace = _get_namespace(self);
     entry = hv_fetch_ent(namespace, variable.name, 0, 0);
     if (!entry)
@@ -717,7 +716,7 @@ XS(XS_Package__Stash__XS_has_symbol)
     else {
         RETVAL = (variable.type == VAR_CODE);
     }
-#line 721 "XS.c"
+#line 720 "XS.c"
 	XSprePUSH; PUSHi((IV)RETVAL);
     }
     XSRETURN(1);
@@ -737,9 +736,9 @@ XS(XS_Package__Stash__XS_get_symbol)
     {
 	SV *	self = ST(0);
 	varspec_t	variable;
-#line 560 "XS.xs"
+#line 559 "XS.xs"
     SV *val;
-#line 743 "XS.c"
+#line 742 "XS.c"
 	SV *	RETVAL;
 
     if (SvPOK(ST(1)))
@@ -748,12 +747,12 @@ XS(XS_Package__Stash__XS_get_symbol)
         _deconstruct_variable_hash((HV*)SvRV(ST(1)), &variable);
     else
         croak("varspec must be a string or a hashref");
-#line 562 "XS.xs"
+#line 561 "XS.xs"
     val = _get_symbol(self, &variable, 0);
     if (!val)
         XSRETURN_UNDEF;
     RETVAL = newRV_inc(val);
-#line 757 "XS.c"
+#line 756 "XS.c"
 	ST(0) = RETVAL;
 	sv_2mortal(ST(0));
     }
@@ -774,9 +773,9 @@ XS(XS_Package__Stash__XS_get_or_add_symbol)
     {
 	SV *	self = ST(0);
 	varspec_t	variable;
-#line 574 "XS.xs"
+#line 573 "XS.xs"
     SV *val;
-#line 780 "XS.c"
+#line 779 "XS.c"
 	SV *	RETVAL;
 
     if (SvPOK(ST(1)))
@@ -785,12 +784,12 @@ XS(XS_Package__Stash__XS_get_or_add_symbol)
         _deconstruct_variable_hash((HV*)SvRV(ST(1)), &variable);
     else
         croak("varspec must be a string or a hashref");
-#line 576 "XS.xs"
+#line 575 "XS.xs"
     val = _get_symbol(self, &variable, 1);
     if (!val)
         XSRETURN_UNDEF;
     RETVAL = newRV_inc(val);
-#line 794 "XS.c"
+#line 793 "XS.c"
 	ST(0) = RETVAL;
 	sv_2mortal(ST(0));
     }
@@ -811,11 +810,11 @@ XS(XS_Package__Stash__XS_remove_symbol)
     {
 	SV *	self = ST(0);
 	varspec_t	variable;
-#line 588 "XS.xs"
+#line 587 "XS.xs"
     HV *namespace;
     HE *entry;
     SV *val;
-#line 819 "XS.c"
+#line 818 "XS.c"
 
     if (SvPOK(ST(1)))
         _deconstruct_variable_name(ST(1), &variable);
@@ -823,7 +822,7 @@ XS(XS_Package__Stash__XS_remove_symbol)
         _deconstruct_variable_hash((HV*)SvRV(ST(1)), &variable);
     else
         croak("varspec must be a string or a hashref");
-#line 592 "XS.xs"
+#line 591 "XS.xs"
     namespace = _get_namespace(self);
     entry = hv_fetch_ent(namespace, variable.name, 0, 0);
     if (!entry)
@@ -855,7 +854,7 @@ XS(XS_Package__Stash__XS_remove_symbol)
             hv_delete_ent(namespace, variable.name, G_DISCARD, 0);
         }
     }
-#line 859 "XS.c"
+#line 858 "XS.c"
     }
     XSRETURN_EMPTY;
 }
@@ -884,7 +883,7 @@ XS(XS_Package__Stash__XS_list_all_symbols)
 	croak("vartype must be a string");
     vartype = string_to_vartype(SvPV_nolen(ST(1)));
 	}
-#line 629 "XS.xs"
+#line 628 "XS.xs"
     if (vartype == VAR_NONE) {
         HV *namespace;
         HE *entry;
@@ -936,7 +935,7 @@ XS(XS_Package__Stash__XS_list_all_symbols)
             }
         }
     }
-#line 940 "XS.c"
+#line 939 "XS.c"
 	PUTBACK;
 	return;
     }
@@ -958,12 +957,12 @@ XS(XS_Package__Stash__XS_get_all_symbols)
     {
 	SV *	self = ST(0);
 	vartype_t	vartype;
-#line 686 "XS.xs"
+#line 685 "XS.xs"
     HV *namespace, *ret;
     SV *val;
     char *key;
     I32 len;
-#line 967 "XS.c"
+#line 966 "XS.c"
 
 	if (items < 2)
 	    vartype = VAR_NONE;
@@ -972,7 +971,7 @@ XS(XS_Package__Stash__XS_get_all_symbols)
 	croak("vartype must be a string");
     vartype = string_to_vartype(SvPV_nolen(ST(1)));
 	}
-#line 691 "XS.xs"
+#line 690 "XS.xs"
     namespace = _get_namespace(self);
     ret = newHV();
 
@@ -1014,7 +1013,7 @@ XS(XS_Package__Stash__XS_get_all_symbols)
     }
 
     mPUSHs(newRV_noinc((SV*)ret));
-#line 1018 "XS.c"
+#line 1017 "XS.c"
 	PUTBACK;
 	return;
     }
@@ -1055,7 +1054,7 @@ XS(boot_Package__Stash__XS)
 
     /* Initialisation Section */
 
-#line 734 "XS.xs"
+#line 733 "XS.xs"
     {
         name_key = newSVpvs("name");
         PERL_HASH(name_hash, "name", 4);
@@ -1067,7 +1066,7 @@ XS(boot_Package__Stash__XS)
         PERL_HASH(type_hash, "type", 4);
     }
 
-#line 1071 "XS.c"
+#line 1070 "XS.c"
 
     /* End of Initialisation Section */
 
