@@ -1,6 +1,6 @@
 package Package::Stash::XS;
 BEGIN {
-  $Package::Stash::XS::VERSION = '0.16';
+  $Package::Stash::XS::VERSION = '0.17';
 }
 use strict;
 use warnings;
@@ -29,7 +29,7 @@ Package::Stash::XS - faster and more correct implementation of the Package::Stas
 
 =head1 VERSION
 
-version 0.16
+version 0.17
 
 =head1 SYNOPSIS
 

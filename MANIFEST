@@ -5,17 +5,9 @@ META.json
 META.yml
 Makefile.PL
 README
-XS.bs
-XS.c
-XS.o
 XS.xs
-blib/arch/auto/Package/Stash/XS/XS.bs
-blib/arch/auto/Package/Stash/XS/XS.so
-blib/lib/Package/Stash/XS.pm
-blib/man3/Package::Stash::XS.3
 dist.ini
 lib/Package/Stash/XS.pm
-pm_to_blib
 ppport.h
 t/00-compile.t
 t/01-basic.t
