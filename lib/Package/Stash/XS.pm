@@ -1,6 +1,6 @@
 package Package::Stash::XS;
 BEGIN {
-  $Package::Stash::XS::VERSION = '0.17';
+  $Package::Stash::XS::VERSION = '0.18';
 }
 use strict;
 use warnings;
@@ -29,7 +29,7 @@ Package::Stash::XS - faster and more correct implementation of the Package::Stas
 
 =head1 VERSION
 
-version 0.17
+version 0.18
 
 =head1 SYNOPSIS
 
@@ -115,7 +115,7 @@ This module is a factoring out of code that used to live here
 
 =head1 COPYRIGHT AND LICENSE
 
-This software is copyright (c) 2010 by Jesse Luehrs.
+This software is copyright (c) 2011 by Jesse Luehrs.
 
 This is free software; you can redistribute it and/or modify it under
 the same terms as the Perl 5 programming language system itself.

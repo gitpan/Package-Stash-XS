@@ -24,7 +24,7 @@ my %WriteMakefileArgs = (
   'LICENSE' => 'perl',
   'NAME' => 'Package::Stash::XS',
   'PREREQ_PM' => {},
-  'VERSION' => '0.17',
+  'VERSION' => '0.18',
   'test' => {
     'TESTS' => 't/*.t'
   }
