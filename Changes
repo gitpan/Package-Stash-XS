@@ -1,4 +1,7 @@
-Revision history for Package-Stash
+Revision history for Package-Stash-XS
+
+0.19  2011-01-05
+      - actually fix scalar initial value validity test
 
 0.18  2011-01-05
       - more correct validity test for scalars (rafl, Roland van Ipenburg)
