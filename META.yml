@@ -5,7 +5,6 @@ author:
 build_requires:
   Test::Fatal: 0
   Test::More: 0.88
-  Test::Requires: 0
 configure_requires:
   ExtUtils::MakeMaker: 6.31
 dynamic_config: 0
@@ -16,10 +15,10 @@ meta-spec:
   version: 1.4
 name: Package-Stash-XS
 requires:
-  perl: 5.8.3
+  perl: 5.8.1
 resources:
   repository: git://github.com/doy/package-stash.git
-version: 0.19
+version: 0.20
 x_Dist_Zilla:
   plugins:
     -
@@ -158,9 +157,9 @@ x_Dist_Zilla:
       class: Dist::Zilla::Plugin::Prereqs
       config:
         Dist::Zilla::Plugin::Prereqs:
-          phase: test
-          type: recommends
-      name: TestRecommends
+          phase: develop
+          type: requires
+      name: DevelopRequires
       version: 4.200000
     -
       class: Dist::Zilla::Plugin::PruneFiles
