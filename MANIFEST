@@ -18,10 +18,10 @@ t/05-isa.t
 t/06-addsub.t
 t/07-edge-cases.t
 t/10-synopsis.t
+t/author-20-leaks.t
+t/author-21-leaks-debug.t
 t/lib/CompileTime.pm
 t/lib/Package/Stash.pm
-t/release-20-leaks.t
-t/release-21-leaks-debug.t
 t/release-eol.t
 t/release-no-tabs.t
 t/release-pod-coverage.t

@@ -17,8 +17,8 @@ name: Package-Stash-XS
 requires:
   perl: 5.8.1
 resources:
-  repository: git://github.com/doy/package-stash.git
-version: 0.20
+  repository: git://github.com/doy/package-stash-xs.git
+version: 0.21
 x_Dist_Zilla:
   plugins:
     -
