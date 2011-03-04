@@ -1,5 +1,11 @@
 Revision history for Package-Stash-XS
 
+0.22  2011-03-04
+      - make the namespace cache lazy and weak, in case the stash is deleted
+      - but, this doesn't work on 5.8, so disable the namespace caching
+        entirely there
+
+
 0.21  2011-01-25
       - make the leak tests author-only, since some smokers run release tests
       - fix some xs forward compat stuff (Dave Mitchell)
