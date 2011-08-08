@@ -28,6 +28,30 @@
 #define GvCV_set(gv, cv) (GvCV(gv) = (CV*)(cv))
 #endif
 
+#ifndef SVT_SCALAR
+#define SVT_SCALAR(svt) (svt <= SVt_PVLV)
+#endif
+
+#ifndef SVT_ARRAY
+#define SVT_ARRAY(svt) (svt == SVt_PVAV)
+#endif
+
+#ifndef SVT_HASH
+#define SVT_HASH(svt) (svt == SVt_PVHV)
+#endif
+
+#ifndef SVT_CODE
+#define SVT_CODE(svt) (svt == SVt_PVCV)
+#endif
+
+#ifndef SVT_IO
+#define SVT_IO(svt) (svt == SVt_PVIO)
+#endif
+
+#ifndef SVT_FORMAT
+#define SVT_FORMAT(svt) (svt == SVt_PVFM)
+#endif
+
 /* HACK: scalar slots are always populated on perl < 5.10, so treat undef
  * as nonexistent. this is consistent with the previous behavior of the pure
  * perl version of this module (since this is the behavior that perl sees
@@ -103,7 +127,7 @@ typedef struct {
 static U32 name_hash, namespace_hash, type_hash;
 static SV *name_key, *namespace_key, *type_key;
 
-const char *vartype_to_string(vartype_t type)
+static const char *vartype_to_string(vartype_t type)
 {
     switch (type) {
     case VAR_SCALAR:
@@ -121,7 +145,7 @@ const char *vartype_to_string(vartype_t type)
     }
 }
 
-I32 vartype_to_svtype(vartype_t type)
+static I32 vartype_to_svtype(vartype_t type)
 {
     switch (type) {
     case VAR_SCALAR:
@@ -139,7 +163,7 @@ I32 vartype_to_svtype(vartype_t type)
     }
 }
 
-vartype_t string_to_vartype(char *vartype)
+static vartype_t string_to_vartype(char *vartype)
 {
     if (strEQ(vartype, "SCALAR")) {
         return VAR_SCALAR;
@@ -161,7 +185,7 @@ vartype_t string_to_vartype(char *vartype)
     }
 }
 
-void _deconstruct_variable_name(SV *variable, varspec_t *varspec)
+static void _deconstruct_variable_name(SV *variable, varspec_t *varspec)
 {
     char *varpv;
 
@@ -194,7 +218,7 @@ void _deconstruct_variable_name(SV *variable, varspec_t *varspec)
     }
 }
 
-void _deconstruct_variable_hash(HV *variable, varspec_t *varspec)
+static void _deconstruct_variable_hash(HV *variable, varspec_t *varspec)
 {
     HE *val;
 
@@ -211,31 +235,31 @@ void _deconstruct_variable_hash(HV *variable, varspec_t *varspec)
     varspec->type = string_to_vartype(SvPV_nolen(HeVAL(val)));
 }
 
-int _valid_for_type(SV *value, vartype_t type)
+static int _valid_for_type(SV *value, vartype_t type)
 {
     svtype sv_type = SvROK(value) ? SvTYPE(SvRV(value)) : SVt_NULL;
 
     switch (type) {
     case VAR_SCALAR:
-        /* XXX: something weird is going on here - apparently values can
-         * be SVt_NULL but also be SvROK (and also, SVt_NULL isn't SvOK) */
-        if (sv_type == SVt_NULL)
-            return 1;
-        return SvROK(value) ? SvOK(SvRV(value)) : SvOK(value);
+        /* XXX is a glob a scalar? assigning a glob to the scalar slot seems
+         * to work here, but in pure perl i'm pretty sure it goes to the EGV
+         * slot, which seems more correct to me. just disable it for now
+         * i guess */
+        return SVT_SCALAR(sv_type) && sv_type != SVt_PVGV;
     case VAR_ARRAY:
-        return sv_type == SVt_PVAV;
+        return SVT_ARRAY(sv_type);
     case VAR_HASH:
-        return sv_type == SVt_PVHV;
+        return SVT_HASH(sv_type);
     case VAR_CODE:
-        return sv_type == SVt_PVCV;
+        return SVT_CODE(sv_type);
     case VAR_IO:
-        return sv_type == SVt_PVIO;
+        return SVT_IO(sv_type);
     default:
         return 0;
     }
 }
 
-HV *_get_namespace(SV *self)
+static HV *_get_namespace(SV *self)
 {
     dSP;
     SV *ret;
@@ -253,7 +277,7 @@ HV *_get_namespace(SV *self)
     return (HV*)SvRV(ret);
 }
 
-SV *_get_name(SV *self)
+static SV *_get_name(SV *self)
 {
     dSP;
     SV *ret;
@@ -271,7 +295,7 @@ SV *_get_name(SV *self)
     return ret;
 }
 
-void _expand_glob(SV *self, SV *varname)
+static void _expand_glob(SV *self, SV *varname)
 {
     SV *name;
 
@@ -285,7 +309,7 @@ void _expand_glob(SV *self, SV *varname)
     SvREFCNT_dec(name);
 }
 
-SV *_get_symbol(SV *self, varspec_t *variable, int vivify)
+static SV *_get_symbol(SV *self, varspec_t *variable, int vivify)
 {
     HV *namespace;
     HE *entry;
@@ -437,7 +461,6 @@ add_symbol(self, variable, initial=NULL, ...)
         int i;
         char *filename = NULL;
         I32 first_line_num = -1, last_line_num = -1;
-        STRLEN namelen;
         SV *dbval;
         HV *dbsub;
 
