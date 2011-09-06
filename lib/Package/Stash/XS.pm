@@ -1,6 +1,6 @@
 package Package::Stash::XS;
 BEGIN {
-  $Package::Stash::XS::VERSION = '0.23';
+  $Package::Stash::XS::VERSION = '0.24';
 }
 use strict;
 use warnings;
@@ -29,7 +29,7 @@ Package::Stash::XS - faster and more correct implementation of the Package::Stas
 
 =head1 VERSION
 
-version 0.23
+version 0.24
 
 =head1 SYNOPSIS
 
@@ -41,20 +41,23 @@ This is a backend for L<Package::Stash>, which provides the functionality in a
 way that's less buggy and much faster. It will be used by default if it's
 installed, and should be preferred in all environments with a compiler.
 
-=head1 BUGS / CAVEATS
+=head1 BUGS
 
-=over 4
-
-=item * Prior to perl 5.10, scalar slots are only considered to exist if they are defined
-
-This is due to a shortcoming within perl itself. See
-L<perlref/Making References> point 7 for more information.
-
-=back
+No known bugs (but see the BUGS section in L<Package::Stash>).
 
 Please report any bugs through RT: email
 C<bug-package-stash-xs at rt.cpan.org>, or browse to
 L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Package-Stash-XS>.
+
+=head1 SEE ALSO
+
+=over 4
+
+=item * L<Class::MOP::Package>
+
+This module is a factoring out of code that used to live here
+
+=back
 
 =head1 SUPPORT
 
@@ -103,15 +106,9 @@ new
 remove_glob
 remove_symbol
 
-=head1 SEE ALSO
+=head1 AUTHOR
 
-=over 4
-
-=item * L<Class::MOP::Package>
-
-This module is a factoring out of code that used to live here
-
-=back
+Jesse Luehrs <doy at tozt dot net>
 
 =head1 COPYRIGHT AND LICENSE
 
