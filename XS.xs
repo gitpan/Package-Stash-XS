@@ -2,8 +2,6 @@
 #include "perl.h"
 #include "XSUB.h"
 
-#define NEED_newRV_noinc
-#define NEED_sv_2pv_flags
 #include "ppport.h"
 
 #ifndef gv_fetchsv
@@ -14,18 +12,31 @@
 #define mro_method_changed_in(x) PL_sub_generation++
 #endif
 
+#ifndef HvENAME
+#define HvENAME HvNAME
+#endif
+
+#ifndef hv_name_set
+#define hv_name_set(stash, name, namelen, flags) \
+    (HvNAME(stash) = savepvn(name, namelen))
+#endif
+
 #ifdef newSVhek
 #define newSVhe(he) newSVhek(HeKEY_hek(he))
 #else
 #define newSVhe(he) newSVpv(HePV(he, PL_na), 0)
 #endif
 
-#ifndef savesvpv
-#define savesvpv(s) savepv(SvPV_nolen(s))
-#endif
-
 #ifndef GvCV_set
 #define GvCV_set(gv, cv) (GvCV(gv) = (CV*)(cv))
+#endif
+
+#ifndef MUTABLE_PTR
+#define MUTABLE_PTR(p) ((void *) (p))
+#endif
+
+#ifndef MUTABLE_SV
+#define MUTABLE_SV(p) ((SV *)MUTABLE_PTR(p))
 #endif
 
 #ifndef SVT_SCALAR
@@ -96,7 +107,7 @@
 } while (0)
 #define GvSetCV(g,v) do {               \
     SvREFCNT_dec(GvCV(g));              \
-    if ((GvCV_set(g, v))) {             \
+    if ((GvCV_set(g, (CV*)(v)))) {      \
         GvIMPORTED_CV_on(g);            \
         GvASSUMECV_on(g);               \
     }                                   \
@@ -324,18 +335,169 @@ static SV *_get_name(SV *self)
     return ret;
 }
 
+static void _real_gv_init(GV *gv, HV *stash, SV *name)
+{
+    char *name_pv;
+    STRLEN name_len;
+
+    name_pv = SvPV(name, name_len);
+    if (!HvENAME(stash)) {
+        hv_name_set(stash, "__ANON__", 8, 0);
+    }
+    gv_init(gv, stash, name_pv, name_len, 1);
+
+    /* XXX: copied and pasted from gv_fetchpvn_flags and such */
+    /* ignoring the stuff for CORE:: and main:: for now, and also
+     * ignoring the GvMULTI_on bits, since we pass 1 to gv_init above */
+    switch (name_pv[0]) {
+        case 'I':
+            if (strEQ(&name_pv[1], "SA")) {
+                AV *av;
+
+                av = GvAVn(gv);
+                sv_magic(MUTABLE_SV(av), MUTABLE_SV(gv), PERL_MAGIC_isa,
+                        NULL, 0);
+            }
+            break;
+        case 'O':
+            if (strEQ(&name_pv[1], "VERLOAD")) {
+                HV *hv;
+
+                hv = GvHVn(gv);
+                hv_magic(hv, NULL, PERL_MAGIC_overload);
+            }
+            break;
+        default:
+            break;
+    }
+}
+
 static void _expand_glob(SV *self, SV *varname)
 {
-    SV *name;
+    HV *namespace;
+    HE *entry;
+    GV *glob;
 
-    name = newSVsv(_get_name(self));
-    sv_catpvs(name, "::");
-    sv_catsv(name, varname);
+    namespace = _get_namespace(self);
 
-    /* can't use gv_init here, because it screws up @ISA in a way that I
-     * can't reproduce, but that CMOP triggers */
-    gv_fetchsv(name, GV_ADD, SVt_NULL);
-    SvREFCNT_dec(name);
+    if (entry = hv_fetch_ent(namespace, varname, 0, 0)) {
+        glob = (GV*)HeVAL(entry);
+        if (isGV(glob)) {
+            croak("_expand_glob called on stash slot with expanded glob");
+        }
+        else {
+            SvREFCNT_inc(glob);
+            _real_gv_init(glob, namespace, varname);
+            if (!hv_store_ent(namespace, varname, (SV*)glob, 0)) {
+                croak("hv_store failed");
+            }
+        }
+    }
+    else {
+        croak("_expand_glob called on nonexistent stash slot");
+    }
+}
+
+static SV *_undef_for_type(vartype_t type)
+{
+    switch (type) {
+    case VAR_SCALAR:
+        return newSV(0);
+        break;
+    case VAR_ARRAY:
+        return (SV*)newAV();
+        break;
+    case VAR_HASH:
+        return (SV*)newHV();
+        break;
+    case VAR_CODE:
+        croak("Don't know how to vivify CODE variables");
+    case VAR_IO:
+        return (SV*)newIO();
+        break;
+    default:
+        croak("Unknown type in vivification");
+    }
+}
+
+static void _add_symbol(SV *self, varspec_t variable, SV *initial)
+{
+    GV *glob;
+    HV *namespace;
+    HE *entry;
+    SV *val;
+
+    /* GV_ADDMULTI rather than GV_ADD because otherwise you get 'used only
+     * once' warnings in some situations... i can't reproduce this, but CMOP
+     * triggers it */
+    namespace = _get_namespace(self);
+    entry = hv_fetch_ent(namespace, variable.name, 0, 0);
+    if (entry) {
+        glob = (GV*)HeVAL(entry);
+    }
+    else {
+        glob = (GV*)newSV(0);
+        _real_gv_init(glob, namespace, variable.name);
+        if (!hv_store_ent(namespace, variable.name, (SV*)glob, 0)) {
+            croak("hv_store failed");
+        }
+    }
+
+    if (!initial) {
+        val = _undef_for_type(variable.type);
+    }
+    else if (SvROK(initial)) {
+        val = SvRV(initial);
+        SvREFCNT_inc_simple_void_NN(val);
+    }
+    else {
+        val = newSVsv(initial);
+    }
+
+    switch (variable.type) {
+    case VAR_SCALAR:
+        GvSetSV(glob, val);
+        break;
+    case VAR_ARRAY:
+        GvSetAV(glob, val);
+        break;
+    case VAR_HASH:
+        GvSetHV(glob, val);
+        break;
+    case VAR_CODE:
+        GvSetCV(glob, val);
+        break;
+    case VAR_IO:
+        GvSetIO(glob, val);
+        break;
+    default:
+        croak("Unknown variable type in add_symbol");
+        break;
+    }
+}
+
+static int _slot_exists(GV *glob, vartype_t type)
+{
+    switch (type) {
+    case VAR_SCALAR:
+        return GvSVOK(glob) ? 1 : 0;
+        break;
+    case VAR_ARRAY:
+        return GvAVOK(glob) ? 1 : 0;
+        break;
+    case VAR_HASH:
+        return GvHVOK(glob) ? 1 : 0;
+        break;
+    case VAR_CODE:
+        croak("Don't know how to vivify CODE variables");
+    case VAR_IO:
+        return GvIOOK(glob) ? 1 : 0;
+        break;
+    default:
+        croak("Unknown type in vivification");
+    }
+
+    return 0;
 }
 
 static SV *_get_symbol(SV *self, varspec_t *variable, int vivify)
@@ -353,29 +515,8 @@ static SV *_get_symbol(SV *self, varspec_t *variable, int vivify)
     if (!isGV(glob))
         _expand_glob(self, variable->name);
 
-    if (vivify) {
-        switch (variable->type) {
-        case VAR_SCALAR:
-            if (!GvSVOK(glob))
-                GvSetSV(glob, newSV(0));
-            break;
-        case VAR_ARRAY:
-            if (!GvAVOK(glob))
-                GvSetAV(glob, newAV());
-            break;
-        case VAR_HASH:
-            if (!GvHVOK(glob))
-                GvSetHV(glob, newHV());
-            break;
-        case VAR_CODE:
-            croak("Don't know how to vivify CODE variables");
-        case VAR_IO:
-            if (!GvIOOK(glob))
-                GvSetIO(glob, newIO());
-            break;
-        default:
-            croak("Unknown type in vivication");
-        }
+    if (vivify && !_slot_exists(glob, variable->type)) {
+        _add_symbol(self, *variable, NULL);
     }
 
     switch (variable->type) {
@@ -399,24 +540,40 @@ MODULE = Package::Stash::XS  PACKAGE = Package::Stash::XS
 PROTOTYPES: DISABLE
 
 SV*
-new(class, package_name)
+new(class, package)
     SV *class
-    SV *package_name
+    SV *package
   PREINIT:
     HV *instance;
   CODE:
-    if (!SvPOK(package_name))
+    if (SvPOK(package)) {
+        if (!_is_valid_module_name(package))
+            croak("%s is not a module name", SvPV_nolen(package));
+
+        instance = newHV();
+
+        if (!hv_store(instance, "name", 4, SvREFCNT_inc_simple_NN(package), 0)) {
+            SvREFCNT_dec(package);
+            SvREFCNT_dec(instance);
+            croak("Couldn't initialize the 'name' key, hv_store failed");
+        }
+    }
+    else if (SvROK(package) && SvTYPE(SvRV(package)) == SVt_PVHV) {
+#if PERL_VERSION < 10
+        croak("The XS implementation of Package::Stash does not support "
+              "anonymous stashes before perl 5.10");
+#else
+        instance = newHV();
+
+        if (!hv_store(instance, "namespace", 9, SvREFCNT_inc_simple_NN(package), 0)) {
+            SvREFCNT_dec(package);
+            SvREFCNT_dec(instance);
+            croak("Couldn't initialize the 'namespace' key, hv_store failed");
+        }
+#endif
+    }
+    else {
         croak("Package::Stash->new must be passed the name of the package to access");
-
-    if (!_is_valid_module_name(package_name))
-        croak("%s is not a module name", SvPV_nolen(package_name));
-
-    instance = newHV();
-
-    if (!hv_store(instance, "name", 4, SvREFCNT_inc_simple_NN(package_name), 0)) {
-        SvREFCNT_dec(package_name);
-        SvREFCNT_dec(instance);
-        croak("Couldn't initialize the 'name' key, hv_store failed");
     }
 
     RETVAL = sv_bless(newRV_noinc((SV*)instance), gv_stashsv(class, 0));
@@ -431,8 +588,12 @@ name(self)
   CODE:
     if (!sv_isobject(self))
         croak("Can't call name as a class method");
-    slot = hv_fetch_ent((HV*)SvRV(self), name_key, 0, name_hash);
-    RETVAL = slot ? SvREFCNT_inc_simple_NN(HeVAL(slot)) : &PL_sv_undef;
+    if (slot = hv_fetch_ent((HV*)SvRV(self), name_key, 0, name_hash)) {
+        RETVAL = SvREFCNT_inc_simple_NN(HeVAL(slot));
+    }
+    else {
+        croak("Can't get the name of an anonymous package");
+    }
   OUTPUT:
     RETVAL
 
@@ -477,23 +638,16 @@ add_symbol(self, variable, initial=NULL, ...)
     SV *self
     varspec_t variable
     SV *initial
-  PREINIT:
-    SV *name;
-    GV *glob;
   CODE:
     if (initial && !_valid_for_type(initial, variable.type))
         croak("%s is not of type %s",
               SvPV_nolen(initial), vartype_to_string(variable.type));
 
-    name = newSVsv(_get_name(self));
-    sv_catpvs(name, "::");
-    sv_catsv(name, variable.name);
-
     if (items > 2 && (PL_perldb & 0x10) && variable.type == VAR_CODE) {
         int i;
         char *filename = NULL;
         I32 first_line_num = -1, last_line_num = -1;
-        SV *dbval;
+        SV *dbval, *name;
         HV *dbsub;
 
         if ((items - 3) % 2)
@@ -529,6 +683,10 @@ add_symbol(self, variable, initial=NULL, ...)
         if (last_line_num == -1)
             last_line_num = first_line_num;
 
+        name = newSVsv(_get_name(self));
+        sv_catpvs(name, "::");
+        sv_catsv(name, variable.name);
+
         /* http://perldoc.perl.org/perldebguts.html#Debugger-Internals */
         dbsub = get_hv("DB::sub", 1);
         dbval = newSVpvf("%s:%d-%d", filename, first_line_num, last_line_num);
@@ -537,44 +695,11 @@ add_symbol(self, variable, initial=NULL, ...)
                  SvPV_nolen(name));
             SvREFCNT_dec(dbval);
         }
+
+        SvREFCNT_dec(name);
     }
 
-    /* GV_ADDMULTI rather than GV_ADD because otherwise you get 'used only
-     * once' warnings in some situations... i can't reproduce this, but CMOP
-     * triggers it */
-    glob = gv_fetchsv(name, GV_ADDMULTI, vartype_to_svtype(variable.type));
-
-    if (initial) {
-        SV *val;
-
-        if (SvROK(initial)) {
-            val = SvRV(initial);
-            SvREFCNT_inc_simple_void_NN(val);
-        }
-        else {
-            val = newSVsv(initial);
-        }
-
-        switch (variable.type) {
-        case VAR_SCALAR:
-            GvSetSV(glob, val);
-            break;
-        case VAR_ARRAY:
-            GvSetAV(glob, val);
-            break;
-        case VAR_HASH:
-            GvSetHV(glob, val);
-            break;
-        case VAR_CODE:
-            GvSetCV(glob, val);
-            break;
-        case VAR_IO:
-            GvSetIO(glob, val);
-            break;
-        }
-    }
-
-    SvREFCNT_dec(name);
+    _add_symbol(self, variable, initial);
 
 void
 remove_glob(self, name)
@@ -616,6 +741,8 @@ has_symbol(self, variable)
         case VAR_IO:
             RETVAL = GvIOOK(glob) ? 1 : 0;
             break;
+        default:
+            croak("Unknown variable type in has_symbol");
         }
     }
     else {
@@ -685,6 +812,9 @@ remove_symbol(self, variable)
         case VAR_IO:
             GvSetIO(glob, NULL);
             break;
+        default:
+            croak("Unknown variable type in remove_symbol");
+            break;
         }
     }
     else {
@@ -707,6 +837,14 @@ list_all_symbols(self, vartype=VAR_NONE)
         keys = hv_iterinit(namespace);
         EXTEND(SP, keys);
         while ((entry = hv_iternext(namespace))) {
+#if PERL_VERSION < 10
+            char *pv;
+            STRLEN len;
+            pv = HePV(entry, len);
+            if (strnEQ(entry, "::ISA::CACHE::", len)) {
+                continue;
+            }
+#endif
             mPUSHs(newSVhe(entry));
         }
     }
@@ -720,6 +858,11 @@ list_all_symbols(self, vartype=VAR_NONE)
         hv_iterinit(namespace);
         while ((val = hv_iternextsv(namespace, &key, &len))) {
             GV *gv = (GV*)val;
+#if PERL_VERSION < 10
+            if (vartype == VAR_SCALAR && strnEQ(key, "::ISA::CACHE::", len)) {
+                continue;
+            }
+#endif
             if (isGV(gv)) {
                 switch (vartype) {
                 case VAR_SCALAR:
@@ -742,6 +885,8 @@ list_all_symbols(self, vartype=VAR_NONE)
                     if (GvIOOK(val))
                         mXPUSHp(key, len);
                     break;
+                default:
+                    croak("Unknown variable type in list_all_symbols");
                 }
             }
             else if (vartype == VAR_CODE) {
@@ -766,6 +911,12 @@ get_all_symbols(self, vartype=VAR_NONE)
     hv_iterinit(namespace);
     while ((val = hv_iternextsv(namespace, &key, &len))) {
         GV *gv = (GV*)val;
+#if PERL_VERSION < 10
+        if ((vartype == VAR_SCALAR || vartype == VAR_NONE)
+            && strnEQ(key, "::ISA::CACHE::", len)) {
+            continue;
+        }
+#endif
 
         if (!isGV(gv)) {
             SV *keysv = newSVpvn(key, len);
@@ -797,6 +948,8 @@ get_all_symbols(self, vartype=VAR_NONE)
         case VAR_NONE:
             hv_store(ret, key, len, SvREFCNT_inc_simple_NN(val), 0);
             break;
+        default:
+            croak("Unknown variable type in get_all_symbols");
         }
     }
 
