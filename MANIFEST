@@ -29,6 +29,7 @@ t/paamayim_nekdotayim.t
 t/scalar-values.t
 t/stash-deletion.t
 t/synopsis.t
+t/warnings.t
 typemap
 xt/author/leaks-debug.t
 xt/author/leaks.t
