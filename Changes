@@ -1,5 +1,8 @@
 Revision history for Package-Stash-XS
 
+0.28  2013-07-16
+      - fix test issue (Graham Knop)
+
 0.27  2013-07-15
       - handle magic more correctly in add_symbol and get_or_add_symbol
 

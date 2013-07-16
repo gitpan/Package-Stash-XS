@@ -31,7 +31,7 @@ resources:
   bugtracker: https://github.com/doy/package-stash-xs/issues
   homepage: http://metacpan.org/release/Package-Stash-XS
   repository: git://github.com/doy/package-stash-xs.git
-version: 0.27
+version: 0.28
 x_Dist_Zilla:
   perl:
     version: 5.018000
